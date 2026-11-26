@@ -37,6 +37,11 @@ config/profile.yaml
 config/profile_*.yaml
 config/search_backend.yaml
 config/search_cybersecurity.yaml
+profile.yaml
+search.yaml
+*.log
+*.sqlite
+*.db
 
 # Temporary Scratch Scripts & Dumped Webpages
 scratch/
@@ -48,4 +53,3 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
-=
