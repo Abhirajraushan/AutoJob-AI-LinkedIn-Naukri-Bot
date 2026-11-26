@@ -8,6 +8,7 @@ BEFORE clicking Apply, and every uncertain chatbot answer is shown to you before
 Naukri changes its markup now and then. All selectors live in SEL; when something breaks,
 check data/debug/*.html and update them here.
 """
+from pathlib import Path
 import re
 import time
 from typing import Iterator
