@@ -121,7 +121,7 @@ def generate_tailored_statement(detail: JobDetail | None = None, label: str = ""
     if any(k in low_title or k in desc for k in ("security", "soc", "siem", "dlp", "infosec", "cyber", "threat", "vulnerability", "incident")):
         return (
             f"I am very excited to apply for the {title} role{comp_clause}. "
-            "As a Software Developer (Cybersecurity & Systems) at IIT Bhubaneswar, I have hands-on experience in DLP policy design, "
+            "As a Software Developer (Cybersecurity & Systems), I have hands-on experience in DLP policy design, "
             "Elastic SIEM alert triage, network packet analysis (Wireshark, TCP/IP, Nmap), and secure Linux platform engineering. "
             "My background in threat detection, Python/Go automation, and incident response directly aligns with your requirements to protect mission-critical environments."
         )
@@ -131,7 +131,7 @@ def generate_tailored_statement(detail: JobDetail | None = None, label: str = ""
         return (
             f"I am excited to apply for the {title} position{comp_clause}. "
             "I bring strong backend engineering experience developing high-concurrency microservices and RESTful APIs in Go (Golang) and Python, "
-            "integrated with PostgreSQL and Docker. Having architected secure platforms and automated services at IIT Bhubaneswar, "
+            "integrated with PostgreSQL and Docker. Having architected secure platforms and automated services, "
             "I write clean, idiomatic Go code and focus on building reliable, scalable distributed architectures."
         )
 
@@ -149,7 +149,7 @@ def generate_tailored_statement(detail: JobDetail | None = None, label: str = ""
         return (
             f"I am excited to apply for the {title} role{comp_clause}. "
             "With hands-on experience designing containerized platform architectures (Docker, AWS), managing relational databases (PostgreSQL/SQL), "
-            "building RESTful APIs, and automating operational workflows at IIT Bhubaneswar, "
+            "building RESTful APIs, and automating operational workflows, "
             "I bring a strong foundation in platform reliability, security, and pipeline performance to support your engineering infrastructure."
         )
 
@@ -157,7 +157,7 @@ def generate_tailored_statement(detail: JobDetail | None = None, label: str = ""
     return (
         f"I am very keen to join{comp_clause} as a {title}. "
         "With 2 years of engineering experience focused on backend architecture, RESTful API design, and database systems (PostgreSQL/SQL) "
-        "using Python, Go, and Java, I have built secure, scalable applications at IIT Bhubaneswar. "
+        "using Python, Go, and Java, I have built secure, scalable applications. "
         "I am eager to contribute clean code, quick learning agility, and reliable engineering solutions to your team."
     )
 
