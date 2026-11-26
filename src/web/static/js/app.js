@@ -1028,6 +1028,10 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadAnalytics() {
     try {
       const res = await fetch("/api/history/analytics");
+      if (!res.ok) {
+        console.warn("Analytics API response not OK:", res.status);
+        return;
+      }
       const data = await res.json();
       if (!data) return;
 
