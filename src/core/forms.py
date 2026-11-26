@@ -321,6 +321,51 @@ class FormFiller:
                 self._file(root, c, first=not file_seen, force=force_invalid and c.invalid)
                 file_seen = True
                 continue
+
+            # Check if this control is a radio group for selecting a resume (e.g. LinkedIn Easy Apply)
+            is_resume_radio = f.kind == "radio" and (
+                any(opt.lower().endswith((".pdf", ".docx", ".doc")) for opt in f.options)
+                or any(k in f.label.lower() for k in ("resume", "cv", "pdf"))
+            )
+            if is_resume_radio and self.s.resume_path.exists():
+                active_name = self.s.resume_path.name.lower()
+                clean_active = re.sub(r"^resume_\d+_", "", active_name)
+                matched_opt = None
+                # Prefer clean professional name over older timestamped names
+                for opt in f.options:
+                    if opt.lower() in ("resume_abhirajraushan.pdf", "resume_abhiraj_raushan.pdf", "abhiraj_resume.pdf"):
+                        matched_opt = opt
+                        break
+                if not matched_opt:
+                    for opt in f.options:
+                        opt_lower = opt.lower()
+                        if not re.search(r"^resume_\d+_", opt_lower) and (clean_active in opt_lower or opt_lower in clean_active):
+                            matched_opt = opt
+                            break
+                if not matched_opt:
+                    for opt in f.options:
+                        opt_lower = opt.lower()
+                        if clean_active in opt_lower or opt_lower in clean_active or active_name in opt_lower:
+                            matched_opt = opt
+                            break
+                if matched_opt:
+                    if c.current != matched_opt:
+                        self.set(root, c, matched_opt)
+                        c.source = "profile (active resume)"
+                    else:
+                        c.value, c.source = c.current, "active_resume"
+                    continue
+                else:
+                    try:
+                        file_inp = root.locator("input[type='file'], input#resume-upload-button").first
+                        if file_inp.count():
+                            file_inp.set_input_files(str(self.s.resume_path))
+                            root.page.wait_for_timeout(2000)
+                            c.value, c.source = self.s.resume_path.name, "file (candidate resume)"
+                            continue
+                    except Exception:
+                        pass
+
             redo = force_invalid and c.invalid
             if c.current and not redo:
                 mine = self.s.engine.profile_answer(f)       # profile.yaml beats a site default
@@ -356,9 +401,11 @@ class FormFiller:
             return
 
         # Check if the currently prefilled file matches candidate's active submitted resume
-        is_matching_file = bool(c.current and (
-            self.s.resume_path.name.lower() in c.current.lower()
-            or c.current.lower() in self.s.resume_path.name.lower()
+        active_name = self.s.resume_path.name.lower()
+        clean_active = re.sub(r"^resume_\d+_", "", active_name)
+        curr_lower = c.current.lower() if c.current else ""
+        is_matching_file = bool(curr_lower and (
+            clean_active in curr_lower or curr_lower in clean_active or active_name in curr_lower
         ))
 
         # Always upload if: forced, upload is "always", or prefilled file doesn't match active submitted resume

@@ -47,11 +47,14 @@ The central mission control for configuring applications, monitoring live dispat
 ---
 
 ### 2. Application Audit Ledger & ATS Tracking
-Review every dispatched application with exact timestamps, ATS match scores, and direct job links:
+Review every dispatched application with exact timestamps, ATS match scores, direct job links, and comprehensive daily platform analytics:
 
 ![Application Audit Ledger](docs/images/2_audit_ledger.png)
 
 #### Features on this Screen:
+* **⚡ Today's Dispatch & Channel Breakdown**: Real-time KPI deck highlighting today's dispatches, separating successful submissions and failures across both LinkedIn and Naukri.
+* **📅 Date-Wise Channel Analytics Matrix**: Day-by-day table breaking down applied count, failed count, LinkedIn (applied/failed), Naukri (applied/failed), and calculated conversion success rates.
+* **🔍 Interactive Date Filter Dropdown**: Easily isolate and review applications for any specific day with a single click.
 * **Comprehensive Audit Trail**: Shows Company Name (Google, Microsoft, Amazon, Atlassian, Razorpay, etc.), Position Title, Location, and Channel.
 * **ATS Match Score**: Computes the match percentage between your resume and the recruiter's job description.
 * **Execution Status**: Distinguishes between `applied`, `already_applied` (fast-skipped), and `skipped`.
@@ -106,13 +109,14 @@ flowchart LR
   * **Experience Metrics**: Total years of industry experience.
   * **Contact & Education Credentials**: Contact details, university, and highest qualification.
 
-#### 2. Automatic Live Naukri Profile Synchronization
-* Unlike static bots that submit applications disconnected from your portal profile, **AutoJob-AI directly audits your live Naukri account**.
-* Before running applications, it compares the active resume in the dashboard against the resume currently attached to your official Naukri profile.
-* If a new resume is detected, the bot automatically navigates to your Naukri account settings, uploads the document, and sets it as the active CV on your live Naukri profile so recruiters always see the matching resume.
+#### 2. Automatic Live Profile Synchronization (Naukri & LinkedIn)
+* Unlike static bots that submit applications disconnected from your portal profile, **AutoJob-AI directly audits your live Naukri and LinkedIn accounts**.
+* **Naukri Live CV Sync**: Before running applications, it compares the active resume in the dashboard against the resume currently attached to your official Naukri profile. If a new resume is detected, it uploads and activates it on your live profile.
+* **LinkedIn Profile Resume Sync**: Automatically navigates to LinkedIn Job Application Settings (`https://www.linkedin.com/jobs/application-settings/`) and uploads your active resume so recruiters see an updated CV.
+* **Clean Document Naming**: Automatically sanitizes filenames (e.g. `Resume_<Name>.pdf`), preventing timestamp-polluted filenames from ever appearing in recruiter portals.
 
-#### 3. LinkedIn Easy Apply Document Attachment
-* During multi-step LinkedIn Easy Apply modal flows, the engine automatically selects and attaches the exact active resume file from your local storage.
+#### 3. LinkedIn Easy Apply Document Attachment & Auto-Selection
+* During multi-step LinkedIn Easy Apply modal flows, the engine automatically selects and attaches the exact active resume matching your candidate profile from your local storage.
 
 #### 4. Context-Aware Screening Questions (Zero Contradictions)
 * Screening questions regarding technical proficiency (e.g. *"How many years of experience do you have with Go / Python / React / Kubernetes?"*) are cross-referenced directly against the skills parsed from your active resume.

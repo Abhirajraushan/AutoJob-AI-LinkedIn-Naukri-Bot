@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Set
 
@@ -140,6 +141,139 @@ class RunnerManager:
             return count
         except Exception:
             return 0
+
+    def get_today_summary(self) -> Dict[str, int]:
+        db_path = DATA_DIR / "applications.db"
+        default_res = {
+            "applied": 0, "failed": 0,
+            "linkedin_applied": 0, "linkedin_failed": 0,
+            "naukri_applied": 0, "naukri_failed": 0
+        }
+        if not db_path.exists():
+            return default_res
+        try:
+            conn = sqlite3.connect(db_path)
+            today_str = time.strftime("%Y-%m-%d")
+            row = conn.execute("""
+                SELECT 
+                    SUM(CASE WHEN status IN ('applied', 'applied_manual') THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN status NOT IN ('applied', 'applied_manual') THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN site = 'linkedin' AND status IN ('applied', 'applied_manual') THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN site = 'linkedin' AND status NOT IN ('applied', 'applied_manual') THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN site = 'naukri' AND status IN ('applied', 'applied_manual') THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN site = 'naukri' AND status NOT IN ('applied', 'applied_manual') THEN 1 ELSE 0 END)
+                FROM applications WHERE updated_at LIKE ?
+            """, (f"{today_str}%",)).fetchone()
+            conn.close()
+            if row:
+                return {
+                    "applied": row[0] or 0,
+                    "failed": row[1] or 0,
+                    "linkedin_applied": row[2] or 0,
+                    "linkedin_failed": row[3] or 0,
+                    "naukri_applied": row[4] or 0,
+                    "naukri_failed": row[5] or 0
+                }
+            return default_res
+        except Exception:
+            return default_res
+
+    def get_datewise_analytics(self) -> Dict[str, Any]:
+        db_path = DATA_DIR / "applications.db"
+        empty_res = {"today": self.get_today_summary(), "overall": {}, "dates": []}
+        if not db_path.exists():
+            return empty_res
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            today_str = time.strftime("%Y-%m-%d")
+
+            rows = conn.execute("""
+                SELECT 
+                    substr(updated_at, 1, 10) as app_date,
+                    COUNT(*) as total_records,
+                    SUM(CASE WHEN status IN ('applied', 'applied_manual') THEN 1 ELSE 0 END) as total_applied,
+                    SUM(CASE WHEN status NOT IN ('applied', 'applied_manual') THEN 1 ELSE 0 END) as total_failed,
+                    SUM(CASE WHEN site = 'linkedin' AND status IN ('applied', 'applied_manual') THEN 1 ELSE 0 END) as linkedin_applied,
+                    SUM(CASE WHEN site = 'linkedin' AND status NOT IN ('applied', 'applied_manual') THEN 1 ELSE 0 END) as linkedin_failed,
+                    SUM(CASE WHEN site = 'naukri' AND status IN ('applied', 'applied_manual') THEN 1 ELSE 0 END) as naukri_applied,
+                    SUM(CASE WHEN site = 'naukri' AND status NOT IN ('applied', 'applied_manual') THEN 1 ELSE 0 END) as naukri_failed
+                FROM applications
+                WHERE updated_at IS NOT NULL AND updated_at != ''
+                GROUP BY app_date
+                ORDER BY app_date DESC
+            """).fetchall()
+
+            dates = []
+            overall = {
+                "total_applied": 0, "total_failed": 0,
+                "linkedin_applied": 0, "linkedin_failed": 0,
+                "naukri_applied": 0, "naukri_failed": 0,
+                "total_processed": 0
+            }
+            today_stats = {
+                "date": today_str,
+                "total_applied": 0, "total_failed": 0,
+                "linkedin_applied": 0, "linkedin_failed": 0,
+                "naukri_applied": 0, "naukri_failed": 0,
+                "success_rate": 0.0
+            }
+
+            for r in rows:
+                d = dict(r)
+                dt = d["app_date"]
+                app = d["total_applied"] or 0
+                fail = d["total_failed"] or 0
+                total = app + fail
+                rate = round((app / total * 100), 1) if total > 0 else 0.0
+                d["success_rate"] = rate
+
+                try:
+                    parsed_dt = datetime.strptime(dt, "%Y-%m-%d")
+                    if dt == today_str:
+                        display = "Today (" + parsed_dt.strftime("%d %b %Y") + ")"
+                    else:
+                        display = parsed_dt.strftime("%d %b %Y")
+                except Exception:
+                    display = dt
+                d["display_date"] = display
+                dates.append(d)
+
+                # Overall accumulator
+                overall["total_applied"] += app
+                overall["total_failed"] += fail
+                overall["linkedin_applied"] += (d["linkedin_applied"] or 0)
+                overall["linkedin_failed"] += (d["linkedin_failed"] or 0)
+                overall["naukri_applied"] += (d["naukri_applied"] or 0)
+                overall["naukri_failed"] += (d["naukri_failed"] or 0)
+                overall["total_processed"] += total
+
+                if dt == today_str:
+                    today_stats = {
+                        "date": today_str,
+                        "total_applied": app,
+                        "total_failed": fail,
+                        "linkedin_applied": d["linkedin_applied"] or 0,
+                        "linkedin_failed": d["linkedin_failed"] or 0,
+                        "naukri_applied": d["naukri_applied"] or 0,
+                        "naukri_failed": d["naukri_failed"] or 0,
+                        "success_rate": rate
+                    }
+
+            tot_overall = overall["total_applied"] + overall["total_failed"]
+            overall["success_rate"] = round((overall["total_applied"] / tot_overall * 100), 1) if tot_overall > 0 else 0.0
+
+            li_tot = overall["linkedin_applied"] + overall["linkedin_failed"]
+            overall["linkedin_success_rate"] = round((overall["linkedin_applied"] / li_tot * 100), 1) if li_tot > 0 else 0.0
+
+            nk_tot = overall["naukri_applied"] + overall["naukri_failed"]
+            overall["naukri_success_rate"] = round((overall["naukri_applied"] / nk_tot * 100), 1) if nk_tot > 0 else 0.0
+
+            conn.close()
+            return {"today": today_stats, "overall": overall, "dates": dates}
+        except Exception as e:
+            print(f"[runner_manager] get_datewise_analytics error: {e}")
+            return empty_res
 
     def start_login(self, site: str):
         if self.status != "idle":

@@ -11,6 +11,7 @@ New UI class names are obfuscated, so selectors use componentkey / aria-label / 
 LinkedIn is strict about automation: keep daily_cap low (~15) and delays human.
 """
 import re
+from pathlib import Path
 from typing import Iterator
 from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
 
@@ -158,6 +159,46 @@ class LinkedInAdapter(SiteAdapter):
         update_live_view(page)
         print("❌ LinkedIn authentication not detected. Please log in to LinkedIn first.")
         raise RuntimeError("LinkedIn authentication required. Please log in to your account.")
+
+    def sync_resume_to_profile(self, page, resume_path) -> tuple[bool, str]:
+        """Navigate to LinkedIn Job Application Settings and upload the active resume."""
+        try:
+            resume_file = Path(resume_path).resolve()
+            if not resume_file.exists():
+                return False, f"Resume file not found: {resume_file}"
+
+            # Ensure clean professional filename for portal upload
+            clean_name = re.sub(r"^resume_\d+_", "", resume_file.name, flags=re.I)
+            clean_name = re.sub(r"_+", "_", clean_name).strip("_")
+            if "abhiraj" in clean_name.lower():
+                clean_name = "Resume_AbhirajRaushan.pdf"
+            elif not clean_name.lower().startswith("resume"):
+                clean_name = f"Resume_{clean_name}"
+
+            clean_upload_file = resume_file.parent / clean_name
+            if not clean_upload_file.exists() or clean_upload_file.stat().st_size != resume_file.stat().st_size:
+                import shutil
+                shutil.copyfile(resume_file, clean_upload_file)
+            upload_target = clean_upload_file
+
+            page.goto(f"{BASE}/jobs/application-settings/", wait_until="domcontentloaded")
+            page.wait_for_timeout(3500)
+            update_live_view(page)
+
+            inp = page.locator("input#resume-upload-button, input[type='file'][id*='resume'], input[type='file']").first
+            if not inp.count():
+                return False, "Could not find resume upload input on LinkedIn application settings"
+
+            inp.set_input_files(str(upload_target))
+            page.wait_for_timeout(4500)
+            update_live_view(page)
+
+            body_text = page.locator("body").inner_text()
+            if clean_name.lower() in body_text.lower() or upload_target.stem.lower() in body_text.lower():
+                return True, f"Resume '{clean_name}' successfully synchronized to LinkedIn settings."
+            return True, f"Resume '{clean_name}' uploaded to LinkedIn application settings."
+        except Exception as e:
+            return False, f"Failed to sync resume to LinkedIn: {e}"
 
     # --- search ----------------------------------------------------------------
 

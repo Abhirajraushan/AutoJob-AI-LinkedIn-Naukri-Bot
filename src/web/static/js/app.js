@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let ws = null;
   let currentProfile = {};
   let currentSearch = {};
-  let historyFilter = { status: "all", site: "all", q: "" };
+  let historyFilter = { status: "all", site: "all", q: "", date: "all" };
 
   // DOM Elements
   const tabButtons = document.querySelectorAll(".nav-tab-btn, .nav-link-btn");
@@ -38,6 +38,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const chkSkipExternal = document.getElementById("chk-skip-external");
   const btnSyncNaukriResume = document.getElementById("btn-sync-naukri-resume");
   const syncNaukriStatus = document.getElementById("sync-naukri-status");
+  const btnSyncLinkedinResume = document.getElementById("btn-sync-linkedin-resume");
+  const syncLinkedinStatus = document.getElementById("sync-linkedin-status");
   const resumeHistoryList = document.getElementById("resume-history-list");
   const resumeCountBadge = document.getElementById("resume-count-badge");
 
@@ -115,6 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (targetId === "tab-history") {
         loadHistory();
+        loadAnalytics();
       } else if (targetId === "tab-profile") {
         loadProfile();
       }
@@ -172,6 +175,7 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.classList.add("is-active");
       historyFilter.status = btn.getAttribute("data-filter-status");
       loadHistory();
+  loadAnalytics();
     });
   });
 
@@ -184,12 +188,14 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.classList.add("is-active");
       historyFilter.site = btn.getAttribute("data-filter-site");
       loadHistory();
+  loadAnalytics();
     });
   });
 
   historySearchInput.addEventListener("input", (e) => {
     historyFilter.q = e.target.value;
     loadHistory();
+  loadAnalytics();
   });
 
   // ================= STATUS & INITIALIZATION =================
@@ -230,6 +236,13 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       badgeAppliedToday.textContent = data.applied_today;
+      if (data.today_stats) {
+        const bdEl = document.getElementById("badge-today-breakdown");
+        if (bdEl) {
+          bdEl.textContent = `(In: ${data.today_stats.linkedin_applied} | Nk: ${data.today_stats.naukri_applied})`;
+          badgeAppliedToday.parentElement.title = `Today: ${data.today_stats.applied} Applied (${data.today_stats.failed} failed) — LinkedIn: ${data.today_stats.linkedin_applied} applied, ${data.today_stats.linkedin_failed} failed | Naukri: ${data.today_stats.naukri_applied} applied, ${data.today_stats.naukri_failed} failed`;
+        }
+      }
       heroStatSkills.textContent = data.skills_count || 0;
 
       // Resume Status Pill
@@ -305,6 +318,7 @@ document.addEventListener("DOMContentLoaded", () => {
             btnStartApply.textContent = "⚡ Launch Autonomous Apply";
             fetchStatus();
             loadHistory();
+  loadAnalytics();
           } else if (msg.status === "running") {
             liveMonitorBox.classList.add("is-active");
             btnStartApply.disabled = true;
@@ -390,7 +404,15 @@ document.addEventListener("DOMContentLoaded", () => {
         method: "POST",
         body: formData
       });
-      const data = await res.json();
+      
+      let data;
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text || `Server responded with status ${res.status}`);
+      }
 
       if (data.success) {
         showToast("Resume mapped successfully. Skills and credentials verified.");
@@ -662,6 +684,46 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  if (btnSyncLinkedinResume) {
+    btnSyncLinkedinResume.addEventListener("click", async () => {
+      try {
+        btnSyncLinkedinResume.disabled = true;
+        btnSyncLinkedinResume.innerHTML = "<span>⏳ Synchronizing with LinkedIn...</span>";
+        if (syncLinkedinStatus) {
+          syncLinkedinStatus.style.display = "block";
+          syncLinkedinStatus.style.color = "#93c5fd";
+          syncLinkedinStatus.textContent = "Uploading active document to your LinkedIn application settings...";
+        }
+
+        const res = await fetch("/api/linkedin/sync_resume", { method: "POST" });
+        const data = await res.json();
+
+        if (data.success) {
+          showToast("✓ Active document successfully synchronized to your official LinkedIn settings.");
+          if (syncLinkedinStatus) {
+            syncLinkedinStatus.style.color = "#34d399";
+            syncLinkedinStatus.textContent = "✓ Synced to LinkedIn successfully!";
+          }
+        } else {
+          showToast(data.error || "LinkedIn profile sync failed", "error");
+          if (syncLinkedinStatus) {
+            syncLinkedinStatus.style.color = "#f87171";
+            syncLinkedinStatus.textContent = "⚠️ Sync failed: " + (data.error || "Unknown error");
+          }
+        }
+      } catch (err) {
+        showToast("Sync error: " + err.message, "error");
+        if (syncLinkedinStatus) {
+          syncLinkedinStatus.style.color = "#f87171";
+          syncLinkedinStatus.textContent = "⚠️ Sync error: " + err.message;
+        }
+      } finally {
+        btnSyncLinkedinResume.disabled = false;
+        btnSyncLinkedinResume.innerHTML = "<span>🔄 Sync Active Document to LinkedIn Profile</span>";
+      }
+    });
+  }
+
   // ================= PORTAL AUTHENTICATION =================
 
   btnLoginNaukri.addEventListener("click", async () => {
@@ -901,6 +963,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const queryParams = new URLSearchParams({
         status: historyFilter.status,
         site: historyFilter.site,
+        date: historyFilter.date || "all",
         q: historyFilter.q
       });
       const res = await fetch(`/api/history?${queryParams.toString()}`);
@@ -958,6 +1021,183 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
       console.error("Audit ledger retrieval error", err);
     }
+  }
+
+  // ================= DATE-WISE & PLATFORM ANALYTICS =================
+
+  async function loadAnalytics() {
+    try {
+      const res = await fetch("/api/history/analytics");
+      const data = await res.json();
+      if (!data) return;
+
+      const t = data.today || {};
+      const o = data.overall || {};
+      const dates = data.dates || [];
+
+      // Update Card 1: Today's Stats
+      const elTodayApplied = document.getElementById("stat-today-applied");
+      const elTodayFailed = document.getElementById("stat-today-failed");
+      const elTodayLi = document.getElementById("stat-today-li-applied");
+      const elTodayLiFail = document.getElementById("stat-today-li-failed");
+      const elTodayNk = document.getElementById("stat-today-nk-applied");
+      const elTodayNkFail = document.getElementById("stat-today-nk-failed");
+
+      if (elTodayApplied) elTodayApplied.textContent = t.total_applied || 0;
+      if (elTodayFailed) elTodayFailed.textContent = `${t.total_failed || 0} Failed`;
+      if (elTodayLi) elTodayLi.textContent = t.linkedin_applied || 0;
+      if (elTodayLiFail) elTodayLiFail.textContent = `(${t.linkedin_failed || 0} fail)`;
+      if (elTodayNk) elTodayNk.textContent = t.naukri_applied || 0;
+      if (elTodayNkFail) elTodayNkFail.textContent = `(${t.naukri_failed || 0} fail)`;
+
+      // Update Card 2: LinkedIn
+      const elOverallLiApp = document.getElementById("stat-overall-li-applied");
+      const elOverallLiFail = document.getElementById("stat-overall-li-failed");
+      const elOverallLiRate = document.getElementById("stat-overall-li-rate");
+      const elTodayLiSub = document.getElementById("stat-today-li-sub");
+      const elTodayLiSubFail = document.getElementById("stat-today-li-sub-failed");
+
+      if (elOverallLiApp) elOverallLiApp.textContent = o.linkedin_applied || 0;
+      if (elOverallLiFail) elOverallLiFail.textContent = `${o.linkedin_failed || 0} Failed`;
+      if (elOverallLiRate) elOverallLiRate.textContent = `${o.linkedin_success_rate || 0}% Pass`;
+      if (elTodayLiSub) elTodayLiSub.textContent = t.linkedin_applied || 0;
+      if (elTodayLiSubFail) elTodayLiSubFail.textContent = `${t.linkedin_failed || 0} Failed`;
+
+      // Update Card 3: Naukri
+      const elOverallNkApp = document.getElementById("stat-overall-nk-applied");
+      const elOverallNkFail = document.getElementById("stat-overall-nk-failed");
+      const elOverallNkRate = document.getElementById("stat-overall-nk-rate");
+      const elTodayNkSub = document.getElementById("stat-today-nk-sub");
+      const elTodayNkSubFail = document.getElementById("stat-today-nk-sub-failed");
+
+      if (elOverallNkApp) elOverallNkApp.textContent = o.naukri_applied || 0;
+      if (elOverallNkFail) elOverallNkFail.textContent = `${o.naukri_failed || 0} Failed`;
+      if (elOverallNkRate) elOverallNkRate.textContent = `${o.naukri_success_rate || 0}% Pass`;
+      if (elTodayNkSub) elTodayNkSub.textContent = t.naukri_applied || 0;
+      if (elTodayNkSubFail) elTodayNkSubFail.textContent = `${t.naukri_failed || 0} Failed`;
+
+      // Update Card 4: Overall Dispatches
+      const elOverallTotalApp = document.getElementById("stat-overall-total-applied");
+      const elOverallTotalFail = document.getElementById("stat-overall-total-failed");
+      const elOverallRate = document.getElementById("stat-overall-rate");
+      const elOverallProc = document.getElementById("stat-overall-processed");
+
+      if (elOverallTotalApp) elOverallTotalApp.textContent = o.total_applied || 0;
+      if (elOverallTotalFail) elOverallTotalFail.textContent = `${o.total_failed || 0} Failed`;
+      if (elOverallRate) elOverallRate.textContent = `${o.success_rate || 0}% Total`;
+      if (elOverallProc) elOverallProc.textContent = o.total_processed || 0;
+
+      // Update Matrix badge
+      const elMatrixCount = document.getElementById("daily-matrix-count-badge");
+      if (elMatrixCount) elMatrixCount.textContent = `${dates.length} Days Logged`;
+
+      // Populate Daily Matrix Table
+      const matrixBody = document.getElementById("daily-matrix-body");
+      if (matrixBody) {
+        if (dates.length === 0) {
+          matrixBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-tertiary); padding: 20px;">No application history recorded yet.</td></tr>`;
+        } else {
+          matrixBody.innerHTML = "";
+          dates.forEach(d => {
+            const tr = document.createElement("tr");
+            const isSelected = historyFilter.date === d.app_date;
+            if (isSelected) tr.style.backgroundColor = "rgba(99, 102, 241, 0.14)";
+
+            tr.innerHTML = `
+              <td style="font-weight: 700; color: #fff;">
+                ${d.display_date}
+              </td>
+              <td>
+                <span class="chip-status chip-status-success" style="font-weight: 800; font-size: 11px;">
+                  ✓ ${d.total_applied} Applied
+                </span>
+              </td>
+              <td>
+                <span class="chip-status ${d.total_failed > 0 ? 'chip-status-danger' : 'chip-status-neutral'}" style="font-weight: 700; font-size: 11px;">
+                  ${d.total_failed > 0 ? `✗ ${d.total_failed} Failed` : `0 Failed`}
+                </span>
+              </td>
+              <td>
+                <span style="color: #60a5fa; font-weight: 700;">✓ ${d.linkedin_applied}</span>
+                <span style="color: ${d.linkedin_failed > 0 ? '#f87171' : 'var(--text-tertiary)'}; font-size: 11px; margin-left: 6px;">(${d.linkedin_failed} fail)</span>
+              </td>
+              <td>
+                <span style="color: #34d399; font-weight: 700;">✓ ${d.naukri_applied}</span>
+                <span style="color: ${d.naukri_failed > 0 ? '#f87171' : 'var(--text-tertiary)'}; font-size: 11px; margin-left: 6px;">(${d.naukri_failed} fail)</span>
+              </td>
+              <td>
+                <span style="font-weight: 800; color: ${d.success_rate >= 80 ? 'var(--accent-emerald)' : 'var(--accent-amber)'}; font-size: 12px;">
+                  ${d.success_rate}%
+                </span>
+              </td>
+              <td>
+                <button type="button" class="btn-core btn-outline-slate btn-filter-date" data-date="${d.app_date}" style="padding: 4px 10px; font-size: 11px; font-weight: 700; ${isSelected ? 'background: #6366f1; color: #fff; border-color: #6366f1;' : ''}">
+                  ${isSelected ? 'Active ✓' : 'Filter Day 🔍'}
+                </button>
+              </td>
+            `;
+            matrixBody.appendChild(tr);
+          });
+
+          // Bind click to filter day buttons
+          matrixBody.querySelectorAll(".btn-filter-date").forEach(btn => {
+            btn.addEventListener("click", () => {
+              const dt = btn.getAttribute("data-date");
+              const dateSelect = document.getElementById("history-date-filter");
+              if (historyFilter.date === dt) {
+                historyFilter.date = "all";
+                if (dateSelect) dateSelect.value = "all";
+              } else {
+                historyFilter.date = dt;
+                if (dateSelect) dateSelect.value = dt;
+              }
+              loadHistory();
+              loadAnalytics();
+            });
+          });
+        }
+      }
+
+      // Populate Date Filter Dropdown
+      const dateSelect = document.getElementById("history-date-filter");
+      if (dateSelect) {
+        const curVal = historyFilter.date || "all";
+        dateSelect.innerHTML = `<option value="all">📅 All Dates (${o.total_applied || 0} Applied)</option>`;
+        dates.forEach(d => {
+          const opt = document.createElement("option");
+          opt.value = d.app_date;
+          opt.textContent = `${d.display_date} · ${d.total_applied} applied (${d.total_failed} fail)`;
+          if (d.app_date === curVal) opt.selected = true;
+          dateSelect.appendChild(opt);
+        });
+      }
+
+    } catch (err) {
+      console.error("loadAnalytics error:", err);
+    }
+  }
+
+  // Date Filter & Toggle Listeners
+  const historyDateFilter = document.getElementById("history-date-filter");
+  if (historyDateFilter) {
+    historyDateFilter.addEventListener("change", (e) => {
+      historyFilter.date = e.target.value;
+      loadHistory();
+      loadAnalytics();
+    });
+  }
+
+  const btnToggleDailyMatrix = document.getElementById("btn-toggle-daily-matrix");
+  const dailyMatrixContainer = document.getElementById("daily-matrix-container");
+  const dailyMatrixToggleText = document.getElementById("daily-matrix-toggle-text");
+  if (btnToggleDailyMatrix && dailyMatrixContainer) {
+    btnToggleDailyMatrix.addEventListener("click", () => {
+      const isHidden = dailyMatrixContainer.style.display === "none";
+      dailyMatrixContainer.style.display = isHidden ? "block" : "none";
+      if (dailyMatrixToggleText) {
+        dailyMatrixToggleText.textContent = isHidden ? "Matrix View ▾" : "Matrix View ▸";
+      }
+    });
   }
 
   // ================= CANDIDATE KNOWLEDGE BASE =================
@@ -1763,6 +2003,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initWebSocket();
   loadSearchPrefs();
   loadHistory();
+  loadAnalytics();
   initElectroWaveMotion();
   init3DCardEffects();
 });

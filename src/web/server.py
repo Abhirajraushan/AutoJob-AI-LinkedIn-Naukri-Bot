@@ -2,6 +2,7 @@ import asyncio
 import csv
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -56,6 +57,7 @@ async def handle_index(request):
 async def handle_get_status(request):
     sessions = runner_manager.check_cookie_session()
     applied_today = runner_manager.get_applications_today_count()
+    today_stats = runner_manager.get_today_summary()
     profile = load_yaml("profile.yaml")
 
     resume_path_rel = profile.get("resume_path", "resume/resume.pdf")
@@ -72,6 +74,7 @@ async def handle_get_status(request):
         "naukri_logged_in": sessions.get("naukri", False),
         "linkedin_logged_in": sessions.get("linkedin", False),
         "applied_today": applied_today,
+        "today_stats": today_stats,
         "resume_name": resume_name,
         "resume_exists": resume_exists,
         "skills_count": len(profile.get("skills", [])),
@@ -79,118 +82,132 @@ async def handle_get_status(request):
 
 
 async def handle_resume_upload(request):
-    reader = await request.multipart()
-    resume_dir = DATA_DIR / "resumes"
-    resume_dir.mkdir(parents=True, exist_ok=True)
-
-    saved_path = None
-    original_filename = ""
-
-    while True:
-        part = await reader.next()
-        if part is None:
-            break
-        if part.name == "resume":
-            original_filename = part.filename or "resume.pdf"
-            safe_name = f"resume_{int(time.time())}_{Path(original_filename).name}"
-            target_path = resume_dir / safe_name
-            with open(target_path, "wb") as f:
-                while True:
-                    chunk = await part.read_chunk()
-                    if not chunk:
-                        break
-                    f.write(chunk)
-            saved_path = target_path
-
-    if not saved_path:
-        return web.json_response({"success": False, "error": "No resume file uploaded"}, status=400)
-
-    # Synchronize default fallback resume file: resume/resume.pdf
-    default_resume = ROOT_DIR / "resume" / "resume.pdf"
-    default_resume.parent.mkdir(parents=True, exist_ok=True)
     try:
-        shutil.copyfile(saved_path, default_resume)
-    except Exception as e:
-        print(f"[server] Warning: Could not mirror resume.pdf: {e}")
+        reader = await request.multipart()
+        resume_dir = DATA_DIR / "resumes"
+        resume_dir.mkdir(parents=True, exist_ok=True)
 
-    # Invalidate any cached parsed text so LLM and AnswerEngine reload the new document
-    for txt_cache in DATA_DIR.glob("resume_*.txt"):
+        saved_path = None
+        original_filename = ""
+
+        while True:
+            part = await reader.next()
+            if part is None:
+                break
+            if part.name == "resume":
+                raw_orig = part.filename or "Resume_AbhirajRaushan.pdf"
+                clean_name = re.sub(r"^resume_\d+_", "", Path(raw_orig).name, flags=re.I)
+                clean_name = re.sub(r"_+", "_", clean_name).strip("_")
+                if "abhiraj" in clean_name.lower():
+                    clean_name = "Resume_AbhirajRaushan.pdf"
+                elif not clean_name.lower().startswith("resume"):
+                    clean_name = f"Resume_{clean_name}"
+                if not clean_name.lower().endswith(".pdf"):
+                    clean_name += ".pdf"
+
+                original_filename = clean_name
+                target_path = resume_dir / clean_name
+                with open(target_path, "wb") as f:
+                    while True:
+                        chunk = await part.read_chunk()
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                saved_path = target_path
+
+        if not saved_path:
+            return web.json_response({"success": False, "error": "No resume file uploaded"}, status=400)
+
+        # Synchronize default fallback resume file: resume/resume.pdf
+        default_resume = ROOT_DIR / "resume" / "resume.pdf"
+        default_resume.parent.mkdir(parents=True, exist_ok=True)
         try:
-            txt_cache.unlink()
-        except Exception:
-            pass
+            shutil.copyfile(saved_path, default_resume)
+        except Exception as e:
+            print(f"[server] Warning: Could not mirror resume.pdf: {e}")
 
-    # Parse resume details
-    parsed = parse_resume(saved_path)
+        # Invalidate any cached parsed text so LLM and AnswerEngine reload the new document
+        for txt_cache in DATA_DIR.glob("resume_*.txt"):
+            try:
+                txt_cache.unlink()
+            except Exception:
+                pass
 
-    # Relative path from project root
-    rel_path = saved_path.relative_to(ROOT_DIR).as_posix()
+        # Parse resume details
+        parsed = parse_resume(saved_path)
 
-    # Update profile.yaml
-    profile = load_yaml("profile.yaml")
-    profile["resume_path"] = rel_path
+        # Relative path from project root
+        rel_path = saved_path.relative_to(ROOT_DIR).as_posix()
 
-    if not profile.get("personal"):
-        profile["personal"] = {}
-    if parsed["name"]:
-        profile["personal"]["full_name"] = parsed["name"]
-    if parsed["email"]:
-        profile["personal"]["email"] = parsed["email"]
-    if parsed["phone"]:
-        profile["personal"]["phone"] = parsed["phone"]
-    if parsed.get("location"):
-        profile["personal"]["current_city"] = parsed["location"]
-    if parsed["linkedin_url"] and not profile["personal"].get("linkedin_url"):
-        profile["personal"]["linkedin_url"] = parsed["linkedin_url"]
-    if parsed["github_url"] and not profile["personal"].get("github_url"):
-        profile["personal"]["github_url"] = parsed["github_url"]
+        # Update profile.yaml
+        profile = load_yaml("profile.yaml")
+        profile["resume_path"] = rel_path
 
-    # Merge or set skills
-    existing_skills = profile.get("skills") or []
-    merged_skills = list(dict.fromkeys(existing_skills + parsed["skills"]))
-    profile["skills"] = merged_skills
+        if not profile.get("personal"):
+            profile["personal"] = {}
+        if parsed.get("name"):
+            profile["personal"]["full_name"] = parsed["name"]
+        if parsed.get("email"):
+            profile["personal"]["email"] = parsed["email"]
+        if parsed.get("phone"):
+            profile["personal"]["phone"] = parsed["phone"]
+        if parsed.get("location"):
+            profile["personal"]["current_city"] = parsed["location"]
+        if parsed.get("linkedin_url") and not profile["personal"].get("linkedin_url"):
+            profile["personal"]["linkedin_url"] = parsed["linkedin_url"]
+        if parsed.get("github_url") and not profile["personal"].get("github_url"):
+            profile["personal"]["github_url"] = parsed["github_url"]
 
-    if not profile.get("experience"):
-        profile["experience"] = {}
-    if parsed["experience_years"] is not None:
-        profile["experience"]["total_years"] = parsed["experience_years"]
-    if parsed["education"]:
-        profile["experience"]["highest_education"] = parsed["education"]
-    if parsed.get("current_company"):
-        profile["experience"]["current_company"] = parsed["current_company"]
-    if parsed.get("current_title"):
-        profile["experience"]["current_title"] = parsed["current_title"]
+        # Merge or set skills
+        existing_skills = profile.get("skills") or []
+        merged_skills = list(dict.fromkeys(existing_skills + (parsed.get("skills") or [])))
+        profile["skills"] = merged_skills
 
-    save_yaml("profile.yaml", profile)
+        if not profile.get("experience"):
+            profile["experience"] = {}
+        if parsed.get("experience_years") is not None:
+            profile["experience"]["total_years"] = parsed["experience_years"]
+        if parsed.get("education"):
+            profile["experience"]["highest_education"] = parsed["education"]
+        if parsed.get("current_company"):
+            profile["experience"]["current_company"] = parsed["current_company"]
+        if parsed.get("current_title"):
+            profile["experience"]["current_title"] = parsed["current_title"]
 
-    # Also update search.yaml with suggested target roles and exact calculated experience
-    search_cfg = load_yaml("search.yaml")
-    if parsed["target_roles"]:
-        new_queries = []
-        for role in parsed["target_roles"]:
-            new_queries.append({
-                "keywords": role.lower(),
-                "locations": [""],
-                "experience": parsed["experience_years"] or 0
-            })
-        if "naukri" in search_cfg:
-            search_cfg["naukri"]["queries"] = new_queries
-            search_cfg["naukri"]["search_urls"] = []
-        if "linkedin" in search_cfg:
-            search_cfg["linkedin"]["queries"] = [
-                {"keywords": role.lower(), "locations": ["India"]} for role in parsed["target_roles"][:4]
-            ]
-            search_cfg["linkedin"]["search_urls"] = []
-        save_yaml("search.yaml", search_cfg)
+        save_yaml("profile.yaml", profile)
 
-    runner_manager.log(f"Active resume synchronized: {original_filename} (Experience: {parsed['experience_label']}, {len(parsed['skills'])} skills)")
+        # Also update search.yaml with suggested target roles and exact calculated experience
+        search_cfg = load_yaml("search.yaml")
+        if parsed.get("target_roles"):
+            new_queries = []
+            for role in parsed["target_roles"]:
+                new_queries.append({
+                    "keywords": role.lower(),
+                    "locations": [""],
+                    "experience": parsed.get("experience_years") or 0
+                })
+            if "naukri" in search_cfg:
+                search_cfg["naukri"]["queries"] = new_queries
+                search_cfg["naukri"]["search_urls"] = []
+            if "linkedin" in search_cfg:
+                search_cfg["linkedin"]["queries"] = [
+                    {"keywords": role.lower(), "locations": ["India"]} for role in parsed["target_roles"][:4]
+                ]
+                search_cfg["linkedin"]["search_urls"] = []
+            save_yaml("search.yaml", search_cfg)
 
-    return web.json_response({
-        "success": True,
-        "filename": original_filename,
-        "parsed": parsed,
-        "message": f"Resume synchronized! Detected {parsed['experience_label']} with {len(parsed['skills'])} skills. Job search matrix aligned."
-    })
+        runner_manager.log(f"Active resume synchronized: {original_filename} (Experience: {parsed.get('experience_label', '')}, {len(parsed.get('skills', []))} skills)")
+
+        return web.json_response({
+            "success": True,
+            "filename": original_filename,
+            "parsed": parsed,
+            "message": f"Resume synchronized! Detected {parsed.get('experience_label', '')} with {len(parsed.get('skills', []))} skills. Job search matrix aligned."
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"success": False, "error": f"Failed to upload/process resume: {str(e)}"}, status=500)
 
 
 async def handle_list_resumes(request):
@@ -381,6 +398,46 @@ async def handle_sync_naukri_resume(request):
                 return web.json_response({"success": False, "error": msg}, status=500)
     except Exception as e:
         runner_manager.log(f"Naukri sync error: {e}")
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def handle_sync_linkedin_resume(request):
+    """Directly synchronizes and uploads the active resume to candidate's LinkedIn Profile / Application Settings."""
+    profile = load_yaml("profile.yaml")
+    resume_path_rel = profile.get("resume_path")
+    if not resume_path_rel:
+        return web.json_response({"error": "No resume is currently active"}, status=400)
+
+    resume_path = ROOT_DIR / resume_path_rel
+    if not resume_path.exists():
+        return web.json_response({"error": f"Resume file {resume_path.name} not found"}, status=404)
+
+    try:
+        from src.sites.linkedin import LinkedInAdapter
+        from src.core.browser import open_browser
+        from src.runner import Human
+
+        search_cfg = load_yaml("search.yaml")
+        human = Human(search_cfg.get("delays", {}))
+        adapter = LinkedInAdapter(search_cfg, human)
+
+        runner_manager.log(f"Synchronizing active document '{resume_path.name}' to your official LinkedIn settings...")
+        with open_browser(site="linkedin") as page:
+            adapter.ensure_logged_in(page)
+            ok, msg = adapter.sync_resume_to_profile(page, resume_path)
+            if ok:
+                sync_cache_file = ROOT_DIR / "data" / "linkedin_profile_resume.txt"
+                try:
+                    sync_cache_file.write_text(resume_path.name, "utf-8")
+                except Exception:
+                    pass
+                runner_manager.log(f"LinkedIn Profile synced: {msg}")
+                return web.json_response({"success": True, "message": msg})
+            else:
+                runner_manager.log(f"LinkedIn sync failed: {msg}")
+                return web.json_response({"success": False, "error": msg}, status=500)
+    except Exception as e:
+        runner_manager.log(f"LinkedIn sync error: {e}")
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 
@@ -643,7 +700,8 @@ async def handle_get_history(request):
     search_term = request.query.get("q", "").strip().lower()
     status_filter = request.query.get("status", "all")
     site_filter = request.query.get("site", "all")
-    limit = int(request.query.get("limit", 100))
+    date_filter = request.query.get("date", "all")
+    limit = int(request.query.get("limit", 300))
 
     db_path = DATA_DIR / "applications.db"
     if not db_path.exists():
@@ -665,6 +723,10 @@ async def handle_get_history(request):
         query += " AND site = ?"
         params.append(site_filter)
 
+    if date_filter and date_filter != "all":
+        query += " AND substr(updated_at, 1, 10) = ?"
+        params.append(date_filter)
+
     if search_term:
         query += " AND (LOWER(company) LIKE ? OR LOWER(title) LIKE ?)"
         params.append(f"%{search_term}%")
@@ -681,6 +743,11 @@ async def handle_get_history(request):
         "applications": results,
         "total": len(results)
     })
+
+
+async def handle_get_analytics(request):
+    analytics = runner_manager.get_datewise_analytics()
+    return web.json_response(analytics)
 
 
 async def handle_export_csv(request):
@@ -782,6 +849,7 @@ def create_app() -> web.Application:
     app.router.add_post("/api/resumes/activate", handle_activate_resume)
     app.router.add_post("/api/resumes/delete", handle_delete_resume)
     app.router.add_post("/api/naukri/sync_resume", handle_sync_naukri_resume)
+    app.router.add_post("/api/linkedin/sync_resume", handle_sync_linkedin_resume)
     app.router.add_get("/api/naukri/insights", handle_get_naukri_insights)
     app.router.add_post("/api/naukri/insights/fetch", handle_fetch_naukri_insights)
     app.router.add_post("/api/resume/upload", handle_resume_upload)
@@ -794,6 +862,7 @@ def create_app() -> web.Application:
     app.router.add_post("/api/apply/start", handle_start_apply)
     app.router.add_post("/api/apply/stop", handle_stop_apply)
     app.router.add_get("/api/history", handle_get_history)
+    app.router.add_get("/api/history/analytics", handle_get_analytics)
     app.router.add_get("/api/export", handle_export_csv)
     app.router.add_post("/api/reset-session", handle_reset_session)
     app.router.add_get("/ws/live", handle_websocket)

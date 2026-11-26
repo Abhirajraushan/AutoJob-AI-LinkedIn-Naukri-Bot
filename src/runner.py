@@ -361,16 +361,17 @@ def run(site: str, settings: Settings, limit: int | None, dry_run: bool, auto: b
     with open_browser(site=site) as page:
         adapter.ensure_logged_in(page)
         update_live_view(page)
-        if site == "naukri" and hasattr(adapter, "sync_resume_to_profile"):
+        if hasattr(adapter, "sync_resume_to_profile"):
             active_resume_file = Path(settings.resume_path).resolve()
-            sync_cache_file = Path("data/naukri_profile_resume.txt")
+            sync_cache_file = Path(f"data/{site}_profile_resume.txt")
             last_synced = sync_cache_file.read_text("utf-8").strip() if sync_cache_file.exists() else ""
             if last_synced != active_resume_file.name:
-                console.print(f"[bold cyan]Auto-syncing active resume '{active_resume_file.name}' to official Naukri profile...[/]")
+                site_name = site.capitalize()
+                console.print(f"[bold cyan]Auto-syncing active resume '{active_resume_file.name}' to official {site_name} profile...[/]")
                 ok, msg = adapter.sync_resume_to_profile(page, active_resume_file)
                 if ok:
                     sync_cache_file.write_text(active_resume_file.name, "utf-8")
-                    console.print(f"[bold green]✔ Naukri profile updated with: {active_resume_file.name}[/]")
+                    console.print(f"[bold green]✔ {site_name} profile updated with: {active_resume_file.name}[/]")
                 else:
                     console.print(f"[yellow]Auto-sync resume note: {msg}[/]")
         quit_early = False

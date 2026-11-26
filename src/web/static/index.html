@@ -59,6 +59,7 @@
       </div>
       <div id="badge-applied-today" class="chip-status chip-status-neutral">
         <span class="dot-beacon"></span> Today: <span id="count-applied-today" style="margin-left: 4px; font-weight: 800;">0</span> Dispatched
+        <span id="badge-today-breakdown" style="font-size: 10.5px; opacity: 0.85; margin-left: 4px;"></span>
       </div>
     </div>
   </header>
@@ -394,6 +395,12 @@
                 </button>
                 <div id="sync-naukri-status" style="font-size: 11px; margin-top: 4px; display: none;"></div>
 
+                <!-- One-Click LinkedIn Profile Sync Button -->
+                <button id="btn-sync-linkedin-resume" class="btn-core btn-outline-slate" style="width: 100%; margin-top: 6px; font-size: 11px; padding: 8px 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                  <span>🔄 Sync Active Document to LinkedIn Profile</span>
+                </button>
+                <div id="sync-linkedin-status" style="font-size: 11px; margin-top: 4px; display: none;"></div>
+
                 <!-- Multi-Resume Version History Selector -->
                 <div style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 10px;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -691,6 +698,117 @@
 
     <!-- ================= TAB 2: AUDIT LEDGER ================= -->
     <section id="tab-history" class="tab-view">
+
+      <!-- ================= DATE-WISE & CHANNEL ANALYTICS KPI DECK ================= -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-bottom: 20px;">
+        
+        <!-- Card 1: Today's Dispatch (Aaj Kitna Apply Hua) -->
+        <div class="kpi-widget" style="padding: 16px 18px; background: radial-gradient(ellipse at top left, rgba(99, 102, 241, 0.22) 0%, rgba(14, 19, 36, 0.95) 100%); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: var(--radius-md);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #818cf8;">⚡ TODAY'S DISPATCH (AAJ KA)</span>
+            <span id="stat-today-badge" class="chip-status chip-status-success" style="font-size: 10px; padding: 2px 7px;">Active</span>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <div id="stat-today-applied" style="font-size: 28px; font-weight: 800; color: #fff; line-height: 1;">0</div>
+            <div style="font-size: 12px; color: var(--text-secondary);">Applied</div>
+            <div id="stat-today-failed" style="font-size: 12px; color: #f43f5e; font-weight: 700; margin-left: auto;">0 Failed</div>
+          </div>
+          <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; font-size: 11.5px;">
+            <span style="color: #60a5fa;">LinkedIn: <b id="stat-today-li-applied">0</b> <span style="color:#f87171;" id="stat-today-li-failed">(0 fail)</span></span>
+            <span style="color: #34d399;">Naukri: <b id="stat-today-nk-applied">0</b> <span style="color:#f87171;" id="stat-today-nk-failed">(0 fail)</span></span>
+          </div>
+        </div>
+
+        <!-- Card 2: LinkedIn Breakdown (LinkedIn Ka Alag) -->
+        <div class="kpi-widget" style="padding: 16px 18px; background: radial-gradient(ellipse at top left, rgba(14, 165, 233, 0.18) 0%, rgba(14, 19, 36, 0.95) 100%); border: 1px solid rgba(14, 165, 233, 0.35); border-radius: var(--radius-md);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #38bdf8;">🔗 LINKEDIN TOTAL</span>
+            <span id="stat-overall-li-rate" class="chip-status chip-status-warning" style="font-size: 10px; padding: 2px 7px;">0% Pass</span>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <div id="stat-overall-li-applied" style="font-size: 28px; font-weight: 800; color: #38bdf8; line-height: 1;">0</div>
+            <div style="font-size: 12px; color: var(--text-secondary);">Applied</div>
+            <div id="stat-overall-li-failed" style="font-size: 12px; color: #f43f5e; font-weight: 700; margin-left: auto;">0 Failed</div>
+          </div>
+          <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 11.5px; color: var(--text-tertiary);">
+            Today: <b id="stat-today-li-sub" style="color: #e2e8f0;">0</b> Applied · <span id="stat-today-li-sub-failed" style="color: #f87171;">0 Failed</span>
+          </div>
+        </div>
+
+        <!-- Card 3: Naukri Breakdown (Naukri Ka Alag) -->
+        <div class="kpi-widget" style="padding: 16px 18px; background: radial-gradient(ellipse at top left, rgba(16, 185, 129, 0.18) 0%, rgba(14, 19, 36, 0.95) 100%); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: var(--radius-md);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #34d399;">🔵 NAUKRI TOTAL</span>
+            <span id="stat-overall-nk-rate" class="chip-status chip-status-success" style="font-size: 10px; padding: 2px 7px;">0% Pass</span>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <div id="stat-overall-nk-applied" style="font-size: 28px; font-weight: 800; color: #34d399; line-height: 1;">0</div>
+            <div style="font-size: 12px; color: var(--text-secondary);">Applied</div>
+            <div id="stat-overall-nk-failed" style="font-size: 12px; color: #f43f5e; font-weight: 700; margin-left: auto;">0 Failed</div>
+          </div>
+          <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 11.5px; color: var(--text-tertiary);">
+            Today: <b id="stat-today-nk-sub" style="color: #e2e8f0;">0</b> Applied · <span id="stat-today-nk-sub-failed" style="color: #f87171;">0 Failed</span>
+          </div>
+        </div>
+
+        <!-- Card 4: All-Time Career Velocity -->
+        <div class="kpi-widget" style="padding: 16px 18px; background: radial-gradient(ellipse at top left, rgba(245, 158, 11, 0.15) 0%, rgba(14, 19, 36, 0.95) 100%); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: var(--radius-md);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #fbbf24;">📊 OVERALL DISPATCHED</span>
+            <span id="stat-overall-rate" class="chip-status chip-status-neutral" style="font-size: 10px; padding: 2px 7px;">0% Total</span>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <div id="stat-overall-total-applied" style="font-size: 28px; font-weight: 800; color: #fbbf24; line-height: 1;">0</div>
+            <div style="font-size: 12px; color: var(--text-secondary);">Applied</div>
+            <div id="stat-overall-total-failed" style="font-size: 12px; color: #f43f5e; font-weight: 700; margin-left: auto;">0 Failed</div>
+          </div>
+          <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 11.5px; color: var(--text-tertiary);">
+            Total Processed: <b id="stat-overall-processed" style="color: #e2e8f0;">0</b> Applications
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ================= DAILY BREAKDOWN SECTION ================= -->
+      <div class="panel-card" style="margin-bottom: 20px; background: var(--bg-card); border: 1px solid var(--border-medium); border-radius: var(--radius-lg); padding: 18px 22px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" id="btn-toggle-daily-matrix">
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 16px;">📅</span>
+              <h3 style="font-size: 15px; font-weight: 700; color: #fff; margin: 0;">Date-Wise Channel Breakdown (Naukri vs LinkedIn)</h3>
+              <span class="chip-status chip-status-neutral" style="font-size: 10.5px;" id="daily-matrix-count-badge">Days Logged</span>
+            </div>
+            <p style="font-size: 12px; color: var(--text-tertiary); margin-top: 3px;">Day-by-day record of applied and failed applications across both platforms</p>
+          </div>
+          <button type="button" class="btn-core btn-outline-slate" style="padding: 5px 12px; font-size: 11.5px;">
+            <span id="daily-matrix-toggle-text">Matrix View ▾</span>
+          </button>
+        </div>
+
+        <!-- Matrix Table Container -->
+        <div id="daily-matrix-container" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.07); padding-top: 14px;">
+          <div class="table-scroll-view" style="margin-top: 0; max-height: 300px;">
+            <table class="enterprise-data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Total Applied</th>
+                  <th>Total Failed</th>
+                  <th>🔗 LinkedIn (Apply / Fail)</th>
+                  <th>🔵 Naukri (Apply / Fail)</th>
+                  <th>Success Rate</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="daily-matrix-body">
+                <tr><td colspan="7" style="text-align: center; color: var(--text-tertiary); padding: 20px;">Loading date-wise breakdown...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= DETAILED AUDIT LEDGER TABLE ================= -->
       <div class="table-card">
         <div class="card-slate-header">
           <div>
@@ -703,8 +821,15 @@
         </div>
 
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 14px; flex-wrap: wrap;">
-          <div style="flex: 1; min-width: 280px;">
+          <div style="flex: 1; min-width: 250px;">
             <input type="text" id="history-search-input" class="input-control" placeholder="Search by company, position title, or location...">
+          </div>
+          <!-- Date Filter Dropdown -->
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label for="history-date-filter" style="font-size: 12px; color: var(--text-tertiary); font-weight: 700; text-transform: uppercase;">Date:</label>
+            <select id="history-date-filter" class="input-control" style="width: auto; min-width: 175px; padding: 7px 12px; font-size: 12px; font-weight: 600; background: var(--bg-surface-2); border: 1px solid var(--border-medium); color: #fff; border-radius: var(--radius-sm); cursor: pointer;">
+              <option value="all">📅 All Dates</option>
+            </select>
           </div>
           <div class="role-chip-group">
             <button class="role-tag-btn is-active" data-filter-status="all">All Records</button>
