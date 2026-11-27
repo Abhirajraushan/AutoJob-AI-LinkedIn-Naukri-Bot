@@ -1144,3 +1144,19 @@ svg {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* Custom Scrollbar for Naukri Recent Actions List */
+#naukri-recent-actions-list::-webkit-scrollbar {
+  width: 6px;
+}
+#naukri-recent-actions-list::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 4px;
+}
+#naukri-recent-actions-list::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.5);
+  border-radius: 4px;
+}
+#naukri-recent-actions-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.8);
+}

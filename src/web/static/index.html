@@ -194,17 +194,20 @@
 
             <!-- Recruiter Action Filter Pills & List -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
-              <div style="font-size: 11.5px; font-weight: 700; color: #94a3b8;">Recruiter Activity & Views:</div>
+              <div style="font-size: 11.5px; font-weight: 700; color: #94a3b8; display: flex; align-items: center; gap: 6px;">
+                <span>Recruiter Activity & Views:</span>
+                <span id="naukri-actions-count-badge" style="font-size: 11px; color: #38bdf8; font-weight: 600;">(Showing all actions)</span>
+              </div>
               <div style="display: flex; gap: 6px;" id="naukri-view-filters">
                 <button type="button" id="filter-viewed-only" class="btn-core" style="padding: 4px 10px; font-size: 11px; background: rgba(52, 211, 153, 0.2); border: 1px solid rgba(52, 211, 153, 0.55); color: #34d399; font-weight: 700; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;">
-                  👁️ Viewed by HR (<span id="count-viewed-filter">12</span>)
+                  👁️ Viewed by HR (<span id="count-viewed-filter">17</span>)
                 </button>
                 <button type="button" id="filter-all-applies" class="btn-core" style="padding: 4px 10px; font-size: 11px; background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.25); color: #94a3b8; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;">
-                  All Submissions (<span id="count-all-filter">257</span>)
+                  All Submissions (<span id="count-all-filter">294</span>)
                 </button>
               </div>
             </div>
-            <div id="naukri-recent-actions-list" style="max-height: 155px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px;">
+            <div id="naukri-recent-actions-list" style="max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; padding-right: 6px; scrollbar-width: thin; scrollbar-color: #6366f1 rgba(30, 41, 59, 0.4);">
               <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(30, 41, 59, 0.55); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; font-size: 11.5px;">
                 <div style="min-width: 0; padding-right: 8px;">
                   <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -1123,6 +1126,6 @@
   <!-- Notification Toast Container -->
   <div id="toast-container" class="toast-outlet"></div>
 
-  <script src="/static/js/app.js?v=20261126_datewise_matrix_v2"></script>
+  <script src="/static/js/app.js?v=20261126_naukri_actions_v3"></script>
 </body>
 </html>

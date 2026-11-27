@@ -199,7 +199,7 @@ class NaukriAdapter(SiteAdapter):
                         items.append({"title": t, "company": c, "status": s})
                 return items
 
-            data["recent_applications"] = _extract_cards(body_text)[:15]
+            data["recent_applications"] = _extract_cards(body_text)[:50]
 
             # Attempt to click the "Recruiter Actions" tab to extract specifically viewed / actioned applications
             try:
@@ -207,18 +207,42 @@ class NaukriAdapter(SiteAdapter):
                 if rec_tab.count() > 0:
                     rec_tab.click()
                     page.wait_for_timeout(2500)
+                    
+                    # Scroll down multiple times to trigger lazy-load of cards
+                    for _ in range(5):
+                        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                        page.wait_for_timeout(1000)
+
                     rec_body = page.locator("body").inner_text()
                     rec_items = _extract_cards(rec_body)
+
+                    # Check for pagination (e.g. Page 2, Next) to gather remaining recruiter action cards
+                    try:
+                        next_tab = page.locator("a:has-text('2'), [class*='pagination'] a:has-text('2'), [class*='pagination'] a:has-text('Next'), button:has-text('Next')").first
+                        if next_tab.count() > 0 and next_tab.is_visible():
+                            next_tab.click()
+                            page.wait_for_timeout(2500)
+                            for _ in range(3):
+                                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                                page.wait_for_timeout(800)
+                            p2_body = page.locator("body").inner_text()
+                            p2_items = _extract_cards(p2_body)
+                            for it in p2_items:
+                                if not any(x.get("company") == it.get("company") and x.get("title") == it.get("title") for x in rec_items):
+                                    rec_items.append(it)
+                    except Exception as e_page:
+                        print(f"Pagination check notice: {e_page}")
+
                     if rec_items:
-                        data["recruiter_actions"] = rec_items[:15]
+                        data["recruiter_actions"] = rec_items[:50]
             except Exception as e_click:
                 print(f"Recruiter actions click notice: {e_click}")
 
-            # If recruiter_actions list is empty but count > 0, check recent applications for any viewed/shortlisted items
-            if not data["recruiter_actions"]:
-                for app in data["recent_applications"]:
-                    st = app.get("status", "").lower()
-                    if "view" in st or "shortlist" in st or "contact" in st:
+            # Merge any viewed/shortlisted items from recent applications without duplicates
+            for app in data.get("recent_applications", []):
+                st = app.get("status", "").lower()
+                if "view" in st or "shortlist" in st or "contact" in st or "download" in st:
+                    if not any(x.get("company") == app.get("company") and x.get("title") == app.get("title") for x in data["recruiter_actions"]):
                         data["recruiter_actions"].append(app)
         except Exception as e:
             print(f"History parse error: {e}")

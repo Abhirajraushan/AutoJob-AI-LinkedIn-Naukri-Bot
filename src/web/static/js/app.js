@@ -1853,6 +1853,14 @@ document.addEventListener("DOMContentLoaded", () => {
       items = cachedNaukriData.recent_applications || [];
     }
 
+    const countBadge = document.getElementById("naukri-actions-count-badge");
+    if (countBadge) {
+      const totalCount = activeNaukriViewMode === "viewed" 
+        ? (cachedNaukriData.recruiter_actions_count || items.length)
+        : (cachedNaukriData.total_applies || items.length);
+      countBadge.textContent = `(Showing ${items.length} of ${totalCount})`;
+    }
+
     if (items.length === 0) {
       naukriRecentActionsList.innerHTML = `
         <div style="padding: 12px; text-align: center; color: #64748b; font-size: 11.5px; background: rgba(30, 41, 59, 0.3); border-radius: 8px;">
@@ -1874,9 +1882,20 @@ document.addEventListener("DOMContentLoaded", () => {
         statusBadge = `<span class="chip-status chip-status-success" style="font-size: 10px; padding: 2px 8px; background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4);">⭐ Shortlisted</span>`;
       } else if (statusLower.includes("download")) {
         statusBadge = `<span class="chip-status chip-status-success" style="font-size: 10px; padding: 2px 8px; background: rgba(56, 189, 248, 0.18); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35);">📄 CV Downloaded</span>`;
+      } else if (statusLower.includes("contact")) {
+        statusBadge = `<span class="chip-status chip-status-success" style="font-size: 10px; padding: 2px 8px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);">✉️ Contacted</span>`;
+      } else if (statusLower.includes("active") || statusLower.includes("recruiter")) {
+        statusBadge = `<span class="chip-status chip-status-neutral" style="font-size: 10px; padding: 2px 8px; background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3);">⚡ Recruiter Active</span>`;
       }
 
-      const displayDate = app.date || "Nov 09, 2026";
+      let displayDate = app.date || "";
+      if (!displayDate && app.status) {
+        const m = app.status.match(/(\d+\s*(?:weeks?|days?|months?|hours?)\s*ago|today|yesterday)/i);
+        if (m) {
+          displayDate = m[1].charAt(0).toUpperCase() + m[1].slice(1);
+        }
+      }
+      if (!displayDate) displayDate = "Recent";
 
       item.innerHTML = `
         <div style="min-width: 0; padding-right: 8px;">
